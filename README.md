@@ -6,9 +6,11 @@ A Go server that automatically generates HTTP routes from Bruno request definiti
 
 - 🚀 Automatically scans and loads all `.bru` files
 - 🔄 Generates HTTP routes dynamically based on Bruno requests
-- 📝 Returns mock JSON responses defined in custom `response` blocks
+- 📝 Returns mock JSON responses from separate `.response.json` files
+- ✅ Keeps `.bru` files fully compatible with Bruno desktop app
 - 🎯 Supports path parameters with variable interpolation
 - 🌐 Works with both JSON objects and arrays
+- 🔧 Auto-generates default responses when `.response.json` is missing
 - ⚡ Lightweight and fast with chi router
 
 ## Quick Start
@@ -58,9 +60,22 @@ go build -o bruno-mock-server server/main.go
 
 ## Bruno Request Format
 
-The server extends the standard Bruno `.bru` format with a custom `response` block:
+The server uses standard Bruno `.bru` files (fully compatible with Bruno desktop) and separate `.response.json` files for mock responses:
 
-### Basic Example (JSON Object)
+### File Structure
+
+For each `.bru` request file, create a corresponding `.response.json` file:
+
+```
+requests/
+├── User/
+│   ├── Get User.bru              # Bruno request definition
+│   └── Get User.response.json    # Mock response data
+```
+
+### Bruno Request File (Get User.bru)
+
+Standard Bruno format - no modifications needed:
 
 ```bru
 meta {
@@ -72,14 +87,20 @@ meta {
 get {
   url: {{baseUrl}}/users/:id
 }
+```
 
-response {
-  status: 200
-  headers {
-    Content-Type: application/json
-    X-Custom-Header: custom-value
-  }
-  body {
+### Response File (Get User.response.json)
+
+JSON file with status, headers, and body:
+
+```json
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "X-Custom-Header": "custom-value"
+  },
+  "body": {
     "id": "{{id}}",
     "username": "johndoe",
     "email": "john@example.com",
@@ -90,6 +111,7 @@ response {
 
 ### Array Response Example
 
+**List Users.bru:**
 ```bru
 meta {
   name: List Users
@@ -100,10 +122,13 @@ meta {
 get {
   url: {{baseUrl}}/users
 }
+```
 
-response {
-  status: 200
-  body [
+**List Users.response.json:**
+```json
+{
+  "status": 200,
+  "body": [
     {
       "id": "1",
       "username": "alice"
@@ -116,26 +141,26 @@ response {
 }
 ```
 
-## Response Block Format
+## Response JSON File Format
 
-The `response` block supports the following fields:
+The `.response.json` file supports the following fields:
 
 ### Status Code
-```bru
-response {
-  status: 200
+```json
+{
+  "status": 200
 }
 ```
 Default: 200 if not specified
 
 ### Custom Headers
-```bru
-response {
-  status: 200
-  headers {
-    Content-Type: application/json
-    X-API-Version: v1
-    Cache-Control: no-cache
+```json
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "X-API-Version": "v1",
+    "Cache-Control": "no-cache"
   }
 }
 ```
@@ -144,36 +169,63 @@ response {
 Supports both JSON objects and arrays:
 
 **Object:**
-```bru
-body {
-  "key": "value",
-  "nested": {
-    "field": true
+```json
+{
+  "status": 200,
+  "body": {
+    "key": "value",
+    "nested": {
+      "field": true
+    }
   }
 }
 ```
 
 **Array:**
-```bru
-body [
-  {"id": 1, "name": "Item 1"},
-  {"id": 2, "name": "Item 2"}
-]
+```json
+{
+  "status": 200,
+  "body": [
+    {"id": 1, "name": "Item 1"},
+    {"id": 2, "name": "Item 2"}
+  ]
+}
+```
+
+### Default Response
+
+If no `.response.json` file exists, the server automatically generates a default response:
+
+```json
+{
+  "message": "Mock response for [Request Name]",
+  "method": "GET",
+  "url": "{{baseUrl}}/path"
+}
 ```
 
 ## Path Parameter Interpolation
 
 Path parameters in the URL are automatically interpolated into the response body:
 
-**Request:**
+**Get Post.bru:**
 ```bru
+meta {
+  name: Get Post
+  type: http
+  seq: 1
+}
+
 get {
   url: {{baseUrl}}/users/:userId/posts/:postId
 }
+```
 
-response {
-  status: 200
-  body {
+**Get Post.response.json:**
+```json
+{
+  "status": 200,
+  "body": {
     "userId": "{{userId}}",
     "postId": "{{postId}}",
     "title": "Sample Post"
@@ -186,7 +238,7 @@ response {
 curl http://localhost:8080/users/123/posts/456
 ```
 
-**Response:**
+**Actual Response:**
 ```json
 {
   "userId": "123",
@@ -228,25 +280,28 @@ curl http://localhost:8080/users/usebruno | jq '.'
 
 ```
 linker-bruno/
-├── bruno.json                    # Bruno collection config
-├── environments/                 # Environment variables
+├── bruno.json                         # Bruno collection config
+├── environments/                      # Environment variables
 │   └── local.bru
-├── requests/                     # Bruno .bru files
+├── requests/                          # Bruno requests & responses
 │   ├── User/
-│   │   ├── User Info.bru
-│   │   └── User Repos.bru
+│   │   ├── User Info.bru              # Bruno request
+│   │   ├── User Info.response.json    # Mock response
+│   │   ├── User Repos.bru
+│   │   └── User Repos.response.json
 │   └── Repository/
+│       ├── Repository Info.bru
 │       └── ...
-└── server/                       # Go server code
-    ├── main.go                   # Entry point
+└── server/                            # Go server code
+    ├── main.go                        # Entry point
     ├── parser/
-    │   ├── types.go              # Data structures
-    │   └── parser.go             # .bru file parser
+    │   ├── types.go                   # Data structures
+    │   └── parser.go                  # .bru file parser
     ├── loader/
-    │   ├── loader.go             # File scanner
-    │   └── environment.go        # Environment loader
+    │   ├── loader.go                  # File & response loader
+    │   └── environment.go             # Environment loader
     └── router/
-        └── router.go             # Route generator
+        └── router.go                  # Route generator
 ```
 
 ## How It Works
@@ -255,10 +310,12 @@ linker-bruno/
 2. **Parsing**: Each `.bru` file is parsed to extract:
    - HTTP method (GET, POST, PUT, DELETE, PATCH)
    - URL pattern
-   - Response status, headers, and body
-3. **Route Generation**: URLs are converted to chi routes (e.g., `/users/:id` → `/users/{id}`)
-4. **Variable Interpolation**: Path parameters are extracted and interpolated into response bodies
-5. **Serving**: HTTP server responds with the mock data defined in `response` blocks
+3. **Response Loading**: For each `.bru` file, the server looks for a matching `.response.json` file:
+   - If found, loads status, headers, and body from JSON
+   - If not found, generates a default response
+4. **Route Generation**: URLs are converted to chi routes (e.g., `/users/:id` → `/users/{id}`)
+5. **Variable Interpolation**: Path parameters are extracted and interpolated into response bodies
+6. **Serving**: HTTP server responds with the mock data from `.response.json` files
 
 ## Supported HTTP Methods
 
@@ -270,10 +327,10 @@ linker-bruno/
 
 ## Limitations
 
-- The custom `response` block is not part of the official Bruno format
-- Files without a `response` block will return a default 200 OK response
+- Response data stored separately from `.bru` files (not visible in Bruno desktop)
 - Only JSON responses are supported (no XML, plain text, etc.)
 - No request body validation (yet)
+- Status codes and headers must be defined in `.response.json` files
 
 ## Example Use Cases
 

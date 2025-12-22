@@ -1,10 +1,8 @@
 package parser
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -41,13 +39,7 @@ func ParseBrunoFile(filepath string) (*BrunoRequest, error) {
 		}
 	}
 
-	// Parse response block
-	if responseContent, ok := blocks["response"]; ok {
-		resp, err := parseResponseBlock(responseContent)
-		if err == nil {
-			req.Response = resp
-		}
-	}
+	// Response will be loaded separately from .response.json files
 
 	return req, nil
 }
@@ -164,105 +156,3 @@ func parseMethodBlock(content string) string {
 	return ""
 }
 
-// parseResponseBlock parses the response block
-func parseResponseBlock(content string) (ResponseBlock, error) {
-	resp := ResponseBlock{
-		Status:  200,
-		Headers: make(map[string]string),
-	}
-
-	// Extract status
-	statusRe := regexp.MustCompile(`status:\s*(\d+)`)
-	if match := statusRe.FindStringSubmatch(content); match != nil {
-		if status, err := strconv.Atoi(match[1]); err == nil {
-			resp.Status = status
-		}
-	}
-
-	// Extract headers block
-	headersRe := regexp.MustCompile(`headers\s*\{([^}]*)\}`)
-	if match := headersRe.FindStringSubmatch(content); match != nil {
-		resp.Headers = parseHeaders(match[1])
-	}
-
-	// Extract body block - this is tricky because it can contain nested braces/brackets (JSON)
-	bodyStart := strings.Index(content, "body")
-	if bodyStart != -1 {
-		// Find the opening delimiter after "body" (either { or [)
-		restOfContent := content[bodyStart:]
-		openBraceIdx := strings.Index(restOfContent, "{")
-		openBracketIdx := strings.Index(restOfContent, "[")
-
-		// Determine which comes first (and exists)
-		var delimStart int
-		var openDelim, closeDelim byte
-
-		if openBraceIdx != -1 && (openBracketIdx == -1 || openBraceIdx < openBracketIdx) {
-			delimStart = openBraceIdx
-			openDelim = '{'
-			closeDelim = '}'
-		} else if openBracketIdx != -1 {
-			delimStart = openBracketIdx
-			openDelim = '['
-			closeDelim = ']'
-		} else {
-			return resp, nil // No body content found
-		}
-
-		bodyStart += delimStart // Don't skip the opening delimiter
-
-		// Count delimiters to find the matching closing delimiter
-		delimCount := 0
-		bodyEnd := bodyStart
-
-		for bodyEnd < len(content) {
-			if content[bodyEnd] == openDelim {
-				delimCount++
-			} else if content[bodyEnd] == closeDelim {
-				delimCount--
-				if delimCount == 0 {
-					bodyEnd++
-					break
-				}
-			}
-			bodyEnd++
-		}
-
-		if delimCount == 0 {
-			bodyContent := strings.TrimSpace(content[bodyStart:bodyEnd])
-
-			// Try to parse as JSON
-			var jsonBody interface{}
-			if err := json.Unmarshal([]byte(bodyContent), &jsonBody); err == nil {
-				resp.Body = jsonBody
-			} else {
-				// If not valid JSON, store as string
-				resp.Body = bodyContent
-			}
-		}
-	}
-
-	return resp, nil
-}
-
-// parseHeaders parses the headers block content
-func parseHeaders(content string) map[string]string {
-	headers := make(map[string]string)
-
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			headers[key] = value
-		}
-	}
-
-	return headers
-}
