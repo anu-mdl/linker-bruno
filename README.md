@@ -1,0 +1,301 @@
+# Bruno Mock Server
+
+A Go server that automatically generates HTTP routes from Bruno request definitions (`.bru` files). Use your Bruno collections as a single source of truth for mocking APIs!
+
+## Features
+
+- 🚀 Automatically scans and loads all `.bru` files
+- 🔄 Generates HTTP routes dynamically based on Bruno requests
+- 📝 Returns mock JSON responses defined in custom `response` blocks
+- 🎯 Supports path parameters with variable interpolation
+- 🌐 Works with both JSON objects and arrays
+- ⚡ Lightweight and fast with chi router
+
+## Quick Start
+
+### Prerequisites
+
+- Go 1.16 or higher
+- Bruno collection with `.bru` files
+
+### Installation
+
+1. Clone this repository:
+```bash
+git clone <your-repo-url>
+cd linker-bruno
+```
+
+2. Install dependencies:
+```bash
+go mod download
+```
+
+### Running the Server
+
+Start the server with default settings (port 8080, current directory):
+```bash
+go run server/main.go
+```
+
+Or customize with flags:
+```bash
+go run server/main.go --port 3000 --dir requests --env local
+```
+
+**Available Flags:**
+- `--port` - Port to run the server on (default: 8080)
+- `--dir` - Directory containing Bruno collection (default: current directory)
+- `--env` - Environment name to load (default: "local")
+
+### Building
+
+Build a standalone binary:
+```bash
+go build -o bruno-mock-server server/main.go
+./bruno-mock-server --port 8080
+```
+
+## Bruno Request Format
+
+The server extends the standard Bruno `.bru` format with a custom `response` block:
+
+### Basic Example (JSON Object)
+
+```bru
+meta {
+  name: Get User
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/users/:id
+}
+
+response {
+  status: 200
+  headers {
+    Content-Type: application/json
+    X-Custom-Header: custom-value
+  }
+  body {
+    "id": "{{id}}",
+    "username": "johndoe",
+    "email": "john@example.com",
+    "createdAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+### Array Response Example
+
+```bru
+meta {
+  name: List Users
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/users
+}
+
+response {
+  status: 200
+  body [
+    {
+      "id": "1",
+      "username": "alice"
+    },
+    {
+      "id": "2",
+      "username": "bob"
+    }
+  ]
+}
+```
+
+## Response Block Format
+
+The `response` block supports the following fields:
+
+### Status Code
+```bru
+response {
+  status: 200
+}
+```
+Default: 200 if not specified
+
+### Custom Headers
+```bru
+response {
+  status: 200
+  headers {
+    Content-Type: application/json
+    X-API-Version: v1
+    Cache-Control: no-cache
+  }
+}
+```
+
+### Response Body
+Supports both JSON objects and arrays:
+
+**Object:**
+```bru
+body {
+  "key": "value",
+  "nested": {
+    "field": true
+  }
+}
+```
+
+**Array:**
+```bru
+body [
+  {"id": 1, "name": "Item 1"},
+  {"id": 2, "name": "Item 2"}
+]
+```
+
+## Path Parameter Interpolation
+
+Path parameters in the URL are automatically interpolated into the response body:
+
+**Request:**
+```bru
+get {
+  url: {{baseUrl}}/users/:userId/posts/:postId
+}
+
+response {
+  status: 200
+  body {
+    "userId": "{{userId}}",
+    "postId": "{{postId}}",
+    "title": "Sample Post"
+  }
+}
+```
+
+**HTTP Request:**
+```bash
+curl http://localhost:8080/users/123/posts/456
+```
+
+**Response:**
+```json
+{
+  "userId": "123",
+  "postId": "456",
+  "title": "Sample Post"
+}
+```
+
+## Environment Variables
+
+Environment variables can be defined in `environments/*.bru` files:
+
+**environments/local.bru:**
+```bru
+vars {
+  baseUrl: http://localhost:3000
+  apiKey: secret-key-123
+}
+```
+
+These variables are substituted in request URLs during server startup.
+
+## Testing
+
+Test the server with curl:
+
+```bash
+# Get user info
+curl http://localhost:8080/users/usebruno
+
+# Get user repos
+curl http://localhost:8080/users/usebruno/repos
+
+# Pretty print with jq
+curl http://localhost:8080/users/usebruno | jq '.'
+```
+
+## Project Structure
+
+```
+linker-bruno/
+├── bruno.json                    # Bruno collection config
+├── environments/                 # Environment variables
+│   └── local.bru
+├── requests/                     # Bruno .bru files
+│   ├── User/
+│   │   ├── User Info.bru
+│   │   └── User Repos.bru
+│   └── Repository/
+│       └── ...
+└── server/                       # Go server code
+    ├── main.go                   # Entry point
+    ├── parser/
+    │   ├── types.go              # Data structures
+    │   └── parser.go             # .bru file parser
+    ├── loader/
+    │   ├── loader.go             # File scanner
+    │   └── environment.go        # Environment loader
+    └── router/
+        └── router.go             # Route generator
+```
+
+## How It Works
+
+1. **Scanning**: Server recursively scans the directory for `.bru` files
+2. **Parsing**: Each `.bru` file is parsed to extract:
+   - HTTP method (GET, POST, PUT, DELETE, PATCH)
+   - URL pattern
+   - Response status, headers, and body
+3. **Route Generation**: URLs are converted to chi routes (e.g., `/users/:id` → `/users/{id}`)
+4. **Variable Interpolation**: Path parameters are extracted and interpolated into response bodies
+5. **Serving**: HTTP server responds with the mock data defined in `response` blocks
+
+## Supported HTTP Methods
+
+- GET
+- POST
+- PUT
+- DELETE
+- PATCH
+
+## Limitations
+
+- The custom `response` block is not part of the official Bruno format
+- Files without a `response` block will return a default 200 OK response
+- Only JSON responses are supported (no XML, plain text, etc.)
+- No request body validation (yet)
+
+## Example Use Cases
+
+- **API Mocking**: Mock backend APIs for frontend development
+- **Testing**: Create mock servers for integration tests
+- **Prototyping**: Quickly prototype APIs without writing backend code
+- **Documentation**: Use Bruno files as living API documentation with examples
+
+## Contributing
+
+Contributions are welcome! Feel free to:
+- Add support for more response formats
+- Implement request validation
+- Add response delays for latency simulation
+- Create conditional responses based on request data
+
+## License
+
+MIT
+
+## Acknowledgments
+
+Built with:
+- [Bruno](https://www.usebruno.com/) - Open-source API client
+- [chi](https://github.com/go-chi/chi) - Lightweight Go HTTP router
