@@ -6,11 +6,11 @@ A Go server that automatically generates HTTP routes from Bruno request definiti
 
 - 🚀 Automatically scans and loads all `.bru` files
 - 🔄 Generates HTTP routes dynamically based on Bruno requests
-- 📝 Returns mock JSON responses from separate `.response.json` files
-- ✅ Keeps `.bru` files fully compatible with Bruno desktop app
+- 📝 Returns mock JSON responses from inline `example` blocks
+- ✅ Single-file format with request and response in one place
 - 🎯 Supports path parameters with variable interpolation
 - 🌐 Works with both JSON objects and arrays
-- 🔧 Auto-generates default responses when `.response.json` is missing
+- 🔧 Clean separation of concerns with example block format
 - ⚡ Lightweight and fast with chi router
 
 ## Quick Start
@@ -60,22 +60,19 @@ go build -o bruno-mock-server server/main.go
 
 ## Bruno Request Format
 
-The server uses standard Bruno `.bru` files (fully compatible with Bruno desktop) and separate `.response.json` files for mock responses:
+The server uses `.bru` files with an inline `example` block for mock responses:
 
 ### File Structure
 
-For each `.bru` request file, create a corresponding `.response.json` file:
+Each request is defined in a single `.bru` file:
 
 ```
 requests/
 ├── User/
-│   ├── Get User.bru              # Bruno request definition
-│   └── Get User.response.json    # Mock response data
+│   └── Get User.bru              # Bruno request with example response
 ```
 
-### Bruno Request File (Get User.bru)
-
-Standard Bruno format - no modifications needed:
+### Complete .bru File Example (Get User.bru)
 
 ```bru
 meta {
@@ -87,24 +84,39 @@ meta {
 get {
   url: {{baseUrl}}/users/:id
 }
-```
 
-### Response File (Get User.response.json)
+example {
+  name: User Response Example
+  description: Mock response for user retrieval
 
-JSON file with status, headers, and body:
+  request: {
+    url: /users/:id
+    method: GET
+    mode: none
+  }
 
-```json
-{
-  "status": 200,
-  "headers": {
-    "Content-Type": "application/json",
-    "X-Custom-Header": "custom-value"
-  },
-  "body": {
-    "id": "{{id}}",
-    "username": "johndoe",
-    "email": "john@example.com",
-    "createdAt": "2024-01-15T10:30:00Z"
+  response: {
+    headers: {
+      content-type: application/json
+      x-custom-header: custom-value
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+      {
+        "id": "{{id}}",
+        "username": "johndoe",
+        "email": "john@example.com",
+        "createdAt": "2024-01-15T10:30:00Z"
+      }
+      '''
+    }
   }
 }
 ```
@@ -122,85 +134,140 @@ meta {
 get {
   url: {{baseUrl}}/users
 }
-```
 
-**List Users.response.json:**
-```json
-{
-  "status": 200,
-  "body": [
-    {
-      "id": "1",
-      "username": "alice"
-    },
-    {
-      "id": "2",
-      "username": "bob"
+example {
+  name: Users List Example
+  description: Mock response for listing users
+
+  request: {
+    url: /users
+    method: GET
+    mode: none
+  }
+
+  response: {
+    status: {
+      code: 200
+      text: OK
     }
-  ]
-}
-```
 
-## Response JSON File Format
-
-The `.response.json` file supports the following fields:
-
-### Status Code
-```json
-{
-  "status": 200
-}
-```
-Default: 200 if not specified
-
-### Custom Headers
-```json
-{
-  "status": 200,
-  "headers": {
-    "Content-Type": "application/json",
-    "X-API-Version": "v1",
-    "Cache-Control": "no-cache"
+    body: {
+      type: json
+      content: '''
+      [
+        {
+          "id": "1",
+          "username": "alice"
+        },
+        {
+          "id": "2",
+          "username": "bob"
+        }
+      ]
+      '''
+    }
   }
 }
 ```
 
-### Response Body
-Supports both JSON objects and arrays:
+## Example Block Format
 
-**Object:**
-```json
-{
-  "status": 200,
-  "body": {
+The `example` block in `.bru` files defines the mock response:
+
+### Example Block Structure
+
+```bru
+example {
+  name: Example Name (optional)
+  description: Example description (optional)
+
+  request: {
+    url: /path/to/resource
+    method: GET
+    mode: none
+  }
+
+  response: {
+    headers: {
+      header-name: header-value
+    }
+
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+      {
+        "data": "value"
+      }
+      '''
+    }
+  }
+}
+```
+
+### Status Codes
+
+Specify the HTTP status code and text:
+
+```bru
+status: {
+  code: 200
+  text: OK
+}
+```
+
+Common status codes:
+- `200 OK` - Success
+- `201 Created` - Resource created
+- `400 Bad Request` - Client error
+- `404 Not Found` - Resource not found
+- `500 Internal Server Error` - Server error
+
+### Custom Headers
+
+Define response headers in the headers block:
+
+```bru
+headers: {
+  content-type: application/json
+  x-api-version: v1
+  cache-control: no-cache
+}
+```
+
+### Response Body
+
+The body content must be wrapped in triple quotes (`'''`):
+
+**Object Response:**
+```bru
+body: {
+  type: json
+  content: '''
+  {
     "key": "value",
     "nested": {
       "field": true
     }
   }
+  '''
 }
 ```
 
-**Array:**
-```json
-{
-  "status": 200,
-  "body": [
+**Array Response:**
+```bru
+body: {
+  type: json
+  content: '''
+  [
     {"id": 1, "name": "Item 1"},
     {"id": 2, "name": "Item 2"}
   ]
-}
-```
-
-### Default Response
-
-If no `.response.json` file exists, the server automatically generates a default response:
-
-```json
-{
-  "message": "Mock response for [Request Name]",
-  "method": "GET",
-  "url": "{{baseUrl}}/path"
+  '''
 }
 ```
 
@@ -219,16 +286,32 @@ meta {
 get {
   url: {{baseUrl}}/users/:userId/posts/:postId
 }
-```
 
-**Get Post.response.json:**
-```json
-{
-  "status": 200,
-  "body": {
-    "userId": "{{userId}}",
-    "postId": "{{postId}}",
-    "title": "Sample Post"
+example {
+  name: Post Example
+
+  request: {
+    url: /users/:userId/posts/:postId
+    method: GET
+    mode: none
+  }
+
+  response: {
+    status: {
+      code: 200
+      text: OK
+    }
+
+    body: {
+      type: json
+      content: '''
+      {
+        "userId": "{{userId}}",
+        "postId": "{{postId}}",
+        "title": "Sample Post"
+      }
+      '''
+    }
   }
 }
 ```
@@ -283,12 +366,10 @@ linker-bruno/
 ├── bruno.json                         # Bruno collection config
 ├── environments/                      # Environment variables
 │   └── local.bru
-├── requests/                          # Bruno requests & responses
+├── requests/                          # Bruno requests with examples
 │   ├── User/
-│   │   ├── User Info.bru              # Bruno request
-│   │   ├── User Info.response.json    # Mock response
-│   │   ├── User Repos.bru
-│   │   └── User Repos.response.json
+│   │   ├── User Info.bru              # Request + response example
+│   │   └── User Repos.bru             # Request + response example
 │   └── Repository/
 │       ├── Repository Info.bru
 │       └── ...
@@ -298,7 +379,7 @@ linker-bruno/
     │   ├── types.go                   # Data structures
     │   └── parser.go                  # .bru file parser
     ├── loader/
-    │   ├── loader.go                  # File & response loader
+    │   ├── loader.go                  # File loader
     │   └── environment.go             # Environment loader
     └── router/
         └── router.go                  # Route generator
@@ -310,12 +391,10 @@ linker-bruno/
 2. **Parsing**: Each `.bru` file is parsed to extract:
    - HTTP method (GET, POST, PUT, DELETE, PATCH)
    - URL pattern
-3. **Response Loading**: For each `.bru` file, the server looks for a matching `.response.json` file:
-   - If found, loads status, headers, and body from JSON
-   - If not found, generates a default response
-4. **Route Generation**: URLs are converted to chi routes (e.g., `/users/:id` → `/users/{id}`)
-5. **Variable Interpolation**: Path parameters are extracted and interpolated into response bodies
-6. **Serving**: HTTP server responds with the mock data from `.response.json` files
+   - Example block with response definition
+3. **Route Generation**: URLs are converted to chi routes (e.g., `/users/:id` → `/users/{id}`)
+4. **Variable Interpolation**: Path parameters are extracted and interpolated into response bodies
+5. **Serving**: HTTP server responds with the mock data from the example block
 
 ## Supported HTTP Methods
 
@@ -327,10 +406,9 @@ linker-bruno/
 
 ## Limitations
 
-- Response data stored separately from `.bru` files (not visible in Bruno desktop)
 - Only JSON responses are supported (no XML, plain text, etc.)
 - No request body validation (yet)
-- Status codes and headers must be defined in `.response.json` files
+- All `.bru` files must contain a valid `example` block with response definition
 
 ## Example Use Cases
 

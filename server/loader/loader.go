@@ -1,7 +1,6 @@
 package loader
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -60,8 +59,11 @@ func LoadAllRequests(baseDir string) ([]*parser.BrunoRequest, error) {
 			return nil
 		}
 
-		// Load the corresponding .response.json file if it exists
-		loadResponseFile(path, req)
+		// Validate that an example block exists
+		if req.Example.Response.Status.Code == 0 {
+			log.Printf("Warning: skipping %s - no example block with valid response found", path)
+			return nil
+		}
 
 		requests = append(requests, req)
 		return nil
@@ -72,56 +74,5 @@ func LoadAllRequests(baseDir string) ([]*parser.BrunoRequest, error) {
 	}
 
 	return requests, nil
-}
-
-// loadResponseFile loads the .response.json file for a .bru file
-func loadResponseFile(bruPath string, req *parser.BrunoRequest) {
-	// Convert "Get User.bru" to "Get User.response.json"
-	responsePath := strings.TrimSuffix(bruPath, ".bru") + ".response.json"
-
-	// Check if the response file exists
-	if _, err := os.Stat(responsePath); os.IsNotExist(err) {
-		// No response file, use default
-		req.Response = generateDefaultResponse(req)
-		return
-	}
-
-	// Read the response file
-	content, err := os.ReadFile(responsePath)
-	if err != nil {
-		log.Printf("Warning: failed to read response file %s: %v", responsePath, err)
-		req.Response = generateDefaultResponse(req)
-		return
-	}
-
-	// Parse the JSON
-	var response parser.ResponseBlock
-	if err := json.Unmarshal(content, &response); err != nil {
-		log.Printf("Warning: failed to parse response file %s: %v", responsePath, err)
-		req.Response = generateDefaultResponse(req)
-		return
-	}
-
-	// Ensure headers map is initialized
-	if response.Headers == nil {
-		response.Headers = make(map[string]string)
-	}
-
-	req.Response = response
-}
-
-// generateDefaultResponse creates a default response when no .response.json file exists
-func generateDefaultResponse(req *parser.BrunoRequest) parser.ResponseBlock {
-	return parser.ResponseBlock{
-		Status: 200,
-		Headers: map[string]string{
-			"Content-Type": "application/json",
-		},
-		Body: map[string]interface{}{
-			"message": "Mock response for " + req.Meta.Name,
-			"method":  req.Method,
-			"url":     req.URL,
-		},
-	}
 }
 

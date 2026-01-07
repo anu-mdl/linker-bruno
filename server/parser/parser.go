@@ -16,10 +16,6 @@ func ParseBrunoFile(filepath string) (*BrunoRequest, error) {
 
 	req := &BrunoRequest{
 		FilePath: filepath,
-		Response: ResponseBlock{
-			Status:  200, // default status
-			Headers: make(map[string]string),
-		},
 	}
 
 	// Extract all blocks from the file
@@ -39,7 +35,14 @@ func ParseBrunoFile(filepath string) (*BrunoRequest, error) {
 		}
 	}
 
-	// Response will be loaded separately from .response.json files
+	// Parse example block
+	if exampleContent, ok := blocks["example"]; ok {
+		example, err := parseExampleBlock(exampleContent)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse example block: %w", err)
+		}
+		req.Example = example
+	}
 
 	return req, nil
 }
@@ -63,6 +66,8 @@ func extractBlocks(content string) map[string]string {
 		if !inBlock && strings.Contains(trimmed, "{") {
 			parts := strings.SplitN(trimmed, "{", 2)
 			blockName := strings.TrimSpace(parts[0])
+			// Strip trailing colon if present (e.g., "request:" -> "request")
+			blockName = strings.TrimSuffix(blockName, ":")
 			if blockName != "" {
 				currentBlock = blockName
 				inBlock = true
@@ -154,5 +159,223 @@ func parseMethodBlock(content string) string {
 		}
 	}
 	return ""
+}
+
+// parseExampleBlock parses the example block
+func parseExampleBlock(content string) (ExampleBlock, error) {
+	example := ExampleBlock{
+		Response: ExampleResponse{
+			Headers: make(map[string]string),
+		},
+	}
+
+	// Parse top-level key:value pairs and extract nested blocks
+	blocks := extractBlocks(content)
+
+	// Parse top-level fields (name, description)
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.Contains(line, "{") {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "name":
+			example.Name = value
+		case "description":
+			example.Description = value
+		}
+	}
+
+	// Parse request block
+	if requestContent, ok := blocks["request"]; ok {
+		example.Request = parseExampleRequestBlock(requestContent)
+	}
+
+	// Parse response block
+	if responseContent, ok := blocks["response"]; ok {
+		response, err := parseExampleResponseBlock(responseContent)
+		if err != nil {
+			return example, err
+		}
+		example.Response = response
+	}
+
+	return example, nil
+}
+
+// parseExampleRequestBlock parses the request block within example
+func parseExampleRequestBlock(content string) ExampleRequest {
+	request := ExampleRequest{}
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "}" {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "url":
+			request.URL = value
+		case "method":
+			request.Method = value
+		case "mode":
+			request.Mode = value
+		}
+	}
+
+	return request
+}
+
+// parseExampleResponseBlock parses the response block within example
+func parseExampleResponseBlock(content string) (ExampleResponse, error) {
+	response := ExampleResponse{
+		Headers: make(map[string]string),
+	}
+
+	// Extract nested blocks (headers, status, body)
+	blocks := extractBlocks(content)
+
+	// Parse headers block
+	if headersContent, ok := blocks["headers"]; ok {
+		response.Headers = parseKeyValueBlock(headersContent)
+	}
+
+	// Parse status block
+	if statusContent, ok := blocks["status"]; ok {
+		response.Status = parseStatusBlock(statusContent)
+	}
+
+	// Parse body block
+	if bodyContent, ok := blocks["body"]; ok {
+		body, err := parseBodyBlock(bodyContent)
+		if err != nil {
+			return response, err
+		}
+		response.Body = body
+	}
+
+	return response, nil
+}
+
+// parseKeyValueBlock parses a block with key: value pairs
+func parseKeyValueBlock(content string) map[string]string {
+	result := make(map[string]string)
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "}" {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		result[key] = value
+	}
+
+	return result
+}
+
+// parseStatusBlock parses the status block
+func parseStatusBlock(content string) ExampleStatus {
+	status := ExampleStatus{}
+
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || line == "}" {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "code":
+			if code, err := strconv.Atoi(value); err == nil {
+				status.Code = code
+			}
+		case "text":
+			status.Text = value
+		}
+	}
+
+	return status
+}
+
+// parseBodyBlock parses the body block with triple-quoted content
+func parseBodyBlock(content string) (ExampleBody, error) {
+	body := ExampleBody{}
+
+	// Look for type and content fields
+	lines := strings.Split(content, "\n")
+	inTripleQuote := false
+	var contentBuilder strings.Builder
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Parse type field
+		if strings.HasPrefix(trimmed, "type:") {
+			body.Type = strings.TrimSpace(strings.TrimPrefix(trimmed, "type:"))
+			continue
+		}
+
+		// Check for content field with triple quotes
+		if strings.HasPrefix(trimmed, "content:") {
+			// Check if triple quotes are on the same line or next line
+			if strings.Contains(line, "'''") {
+				inTripleQuote = true
+				continue
+			}
+			// Check next line for triple quotes
+			if i+1 < len(lines) && strings.Contains(strings.TrimSpace(lines[i+1]), "'''") {
+				inTripleQuote = true
+				continue
+			}
+		}
+
+		// Handle triple-quoted content
+		if inTripleQuote {
+			if strings.Contains(trimmed, "'''") {
+				inTripleQuote = false
+				continue
+			}
+			contentBuilder.WriteString(line)
+			contentBuilder.WriteString("\n")
+		}
+	}
+
+	body.Content = strings.TrimSpace(contentBuilder.String())
+	return body, nil
 }
 

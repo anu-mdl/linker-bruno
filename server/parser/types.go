@@ -6,7 +6,7 @@ type BrunoRequest struct {
 	Meta     MetaBlock
 	Method   string // GET, POST, PUT, DELETE, PATCH
 	URL      string
-	Response ResponseBlock
+	Example  ExampleBlock
 }
 
 // MetaBlock contains metadata
@@ -16,9 +16,36 @@ type MetaBlock struct {
 	Seq  int
 }
 
-// ResponseBlock contains mock response data
-type ResponseBlock struct {
-	Status  int
+// ExampleBlock contains the example response definition
+type ExampleBlock struct {
+	Name        string
+	Description string
+	Request     ExampleRequest
+	Response    ExampleResponse
+}
+
+// ExampleRequest contains request details in the example block
+type ExampleRequest struct {
+	URL    string
+	Method string
+	Mode   string
+}
+
+// ExampleResponse contains response details in the example block
+type ExampleResponse struct {
 	Headers map[string]string
-	Body    interface{} // can be JSON object, array, or string
+	Status  ExampleStatus
+	Body    ExampleBody
+}
+
+// ExampleStatus contains HTTP status information
+type ExampleStatus struct {
+	Code int
+	Text string
+}
+
+// ExampleBody contains response body information
+type ExampleBody struct {
+	Type    string
+	Content string
 }

@@ -69,14 +69,21 @@ func createHandler(req *parser.BrunoRequest) http.HandlerFunc {
 		// Extract path parameters
 		params := extractPathParams(r)
 
+		// Parse the body content from the example block
+		var body interface{}
+		if req.Example.Response.Body.Content != "" {
+			// Unmarshal the body content as JSON
+			if err := json.Unmarshal([]byte(req.Example.Response.Body.Content), &body); err != nil {
+				log.Printf("Warning: failed to parse response body for %s: %v", req.FilePath, err)
+				body = nil
+			}
+		}
+
 		// Interpolate variables in response body
-		body := interpolateVariables(req.Response.Body, params)
+		body = interpolateVariables(body, params)
 
-		// Set status code
-		w.WriteHeader(req.Response.Status)
-
-		// Set custom headers
-		for key, value := range req.Response.Headers {
+		// Set custom headers from example block
+		for key, value := range req.Example.Response.Headers {
 			w.Header().Set(key, value)
 		}
 
@@ -84,6 +91,9 @@ func createHandler(req *parser.BrunoRequest) http.HandlerFunc {
 		if w.Header().Get("Content-Type") == "" {
 			w.Header().Set("Content-Type", "application/json")
 		}
+
+		// Set status code from example block
+		w.WriteHeader(req.Example.Response.Status.Code)
 
 		// Write response body
 		if body != nil {
