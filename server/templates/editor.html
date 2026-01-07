@@ -159,6 +159,12 @@
                     </div>
                 </div>
             `;
+
+            // Enable tab indentation for the response body textarea
+            // This needs to be called after innerHTML is set
+            if (window.enableTabIndentation) {
+                window.enableTabIndentation();
+            }
         </script>
 
         <!-- Save Button -->

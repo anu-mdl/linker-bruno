@@ -12,6 +12,10 @@ A Go server that automatically generates HTTP routes from Bruno request definiti
 - 🌐 Works with both JSON objects and arrays
 - 🔧 Clean separation of concerns with example block format
 - ⚡ Lightweight and fast with chi router
+- 🎨 **Web UI** for visual API design and management (HTMX-based)
+- 📁 Nested folder structure with automatic organization by URL paths
+- ✏️ Full CRUD operations for requests via web interface
+- 🔤 Tab key support and undo/redo in JSON editors
 
 ## Quick Start
 
@@ -49,6 +53,28 @@ go run server/main.go --port 3000 --dir requests --env local
 - `--port` - Port to run the server on (default: 8080)
 - `--dir` - Directory containing Bruno collection (default: current directory)
 - `--env` - Environment name to load (default: "local")
+- `--ui` - Enable web UI for API design and management (default: false)
+
+### Web UI
+
+Enable the visual web interface to create, edit, and manage your API requests:
+
+```bash
+go run server/main.go --ui --port 8080
+```
+
+Then open your browser to `http://localhost:8080/`
+
+**Web UI Features:**
+- **Three-Panel Layout**:
+  - Left sidebar with folder tree (auto-organized by URL paths)
+  - Center editor with tabs (General, Headers, Params, Body)
+  - Right panel for response configuration
+- **Visual Editing**: Edit requests, headers, query params, and response bodies
+- **Dynamic Parameters**: URL parameters like `{id}` are displayed as `[id]`
+- **Nested Folders**: Automatic folder hierarchy with visual indentation
+- **JSON Editor**: Tab key for indentation, Ctrl+Z/Ctrl+Y for undo/redo
+- **HTMX-Powered**: Partial page updates without full reloads
 
 ### Building
 
@@ -82,7 +108,23 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/users/:id
+  url: {{baseUrl}}/users/{id}
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  Accept: application/json
+}
+
+params:query {
+  include: profile
+  fields: id,username,email
+}
+
+body:json {
+  {
+    "requestId": "req-123"
+  }
 }
 
 example {
@@ -90,7 +132,7 @@ example {
   description: Mock response for user retrieval
 
   request: {
-    url: /users/:id
+    url: /users/{id}
     method: GET
     mode: none
   }
@@ -120,6 +162,8 @@ example {
   }
 }
 ```
+
+**Note**: The `headers`, `params:query`, and `body:json` blocks are optional and primarily used when editing via the Web UI. The `example` block is required for the mock server to function.
 
 ### Array Response Example
 
@@ -273,7 +317,7 @@ body: {
 
 ## Path Parameter Interpolation
 
-Path parameters in the URL are automatically interpolated into the response body:
+Path parameters in the URL are automatically interpolated into the response body. Both `:param` and `{param}` syntax are supported.
 
 **Get Post.bru:**
 ```bru
@@ -284,14 +328,14 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/users/:userId/posts/:postId
+  url: /users/{userId}/posts/{postId}
 }
 
 example {
   name: Post Example
 
   request: {
-    url: /users/:userId/posts/:postId
+    url: /users/{userId}/posts/{postId}
     method: GET
     mode: none
   }
@@ -330,6 +374,8 @@ curl http://localhost:8080/users/123/posts/456
 }
 ```
 
+**In the Web UI**, dynamic parameters are displayed with brackets for clarity: `/users/[userId]/posts/[postId]`
+
 ## Environment Variables
 
 Environment variables can be defined in `environments/*.bru` files:
@@ -367,34 +413,56 @@ linker-bruno/
 ├── environments/                      # Environment variables
 │   └── local.bru
 ├── requests/                          # Bruno requests with examples
-│   ├── User/
-│   │   ├── User Info.bru              # Request + response example
-│   │   └── User Repos.bru             # Request + response example
-│   └── Repository/
-│       ├── Repository Info.bru
-│       └── ...
+│   ├── api/
+│   │   ├── users/
+│   │   │   ├── Get User.bru           # Request + response example
+│   │   │   └── List Users.bru
+│   │   └── v1/
+│   │       └── products/
+│   │           └── categories/
+│   │               └── Get Category.bru
+│   └── ...
 └── server/                            # Go server code
     ├── main.go                        # Entry point
     ├── parser/
-    │   ├── types.go                   # Data structures
-    │   └── parser.go                  # .bru file parser
+    │   ├── types.go                   # Data structures (BrunoRequest, MetaBlock, ExampleBlock)
+    │   └── parser.go                  # .bru file block parser
     ├── loader/
-    │   ├── loader.go                  # File loader
-    │   └── environment.go             # Environment loader
-    └── router/
-        └── router.go                  # Route generator
+    │   ├── loader.go                  # Recursive .bru file scanner
+    │   └── environment.go             # Environment variable parser
+    ├── router/
+    │   └── router.go                  # Route generator and variable interpolation
+    ├── web/                           # Web UI (when --ui flag is used)
+    │   ├── handlers.go                # HTMX endpoint handlers, template functions
+    │   ├── crud.go                    # Create/Read/Update/Delete operations
+    │   └── tree.go                    # Folder tree builder
+    ├── templates/                     # HTML templates
+    │   ├── index.html                 # Main page layout
+    │   ├── sidebar.html               # Folder tree sidebar
+    │   └── editor.html                # Request editor with tabs
+    └── static/                        # Static assets
+        └── style.css                  # UI styles
 ```
 
 ## How It Works
 
+### Mock Server Mode (Default)
 1. **Scanning**: Server recursively scans the directory for `.bru` files
 2. **Parsing**: Each `.bru` file is parsed to extract:
    - HTTP method (GET, POST, PUT, DELETE, PATCH)
    - URL pattern
+   - Request metadata (headers, params, body)
    - Example block with response definition
-3. **Route Generation**: URLs are converted to chi routes (e.g., `/users/:id` → `/users/{id}`)
+3. **Route Generation**: URLs are converted to chi routes (e.g., `/users/{id}`)
 4. **Variable Interpolation**: Path parameters are extracted and interpolated into response bodies
 5. **Serving**: HTTP server responds with the mock data from the example block
+
+### Web UI Mode (--ui flag)
+1. All of the above, plus:
+2. **Tree Building**: Requests are organized into a nested folder structure based on URL paths
+3. **Template Rendering**: HTMX-based interface with three panels (sidebar, editor, response)
+4. **CRUD Operations**: Create, read, update, and delete requests via the web interface
+5. **File Serialization**: Changes are written back to `.bru` files maintaining the format
 
 ## Supported HTTP Methods
 
@@ -406,9 +474,10 @@ linker-bruno/
 
 ## Limitations
 
-- Only JSON responses are supported (no XML, plain text, etc.)
-- No request body validation (yet)
+- Only JSON responses are currently supported (no XML, plain text, etc.)
+- No request body validation
 - All `.bru` files must contain a valid `example` block with response definition
+- Web UI requires JavaScript enabled (uses HTMX for dynamic updates)
 
 ## Example Use Cases
 
