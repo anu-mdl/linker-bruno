@@ -1,0 +1,45 @@
+{{define "sidebar.html"}}
+<div class="sidebar-content">
+    <h3>Requests</h3>
+    {{if .Tree}}
+        {{if .Tree.Children}}
+        <ul class="tree-list">
+        {{template "tree-node" .Tree.Children}}
+        </ul>
+        {{end}}
+    {{else}}
+        <div class="empty-state-small">
+            <p>No requests found.</p>
+            <p>Click "Create Request" to get started.</p>
+        </div>
+    {{end}}
+</div>
+{{end}}
+
+{{define "tree-node"}}
+{{range .}}
+    <li class="tree-item {{.Type}}">
+        {{if eq .Type "folder"}}
+            <details open>
+                <summary>
+                    <span class="folder-icon">📁</span>
+                    <span class="folder-name">{{if .IsDynamic}}{{displayParam .Name}}{{else}}{{.Name}}{{end}}</span>
+                </summary>
+                {{if .Children}}
+                <ul class="tree-list">
+                {{template "tree-node" .Children}}
+                </ul>
+                {{end}}
+            </details>
+        {{else if eq .Type "request"}}
+            <div class="request-item"
+                 hx-get="/api/requests/{{.ID}}"
+                 hx-target="#editor"
+                 hx-swap="innerHTML">
+                <span class="method-badge method-{{.Method}}">{{.Method}}</span>
+                <span class="request-name">{{.Name}}</span>
+            </div>
+        {{end}}
+    </li>
+{{end}}
+{{end}}

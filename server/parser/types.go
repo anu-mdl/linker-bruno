@@ -2,11 +2,14 @@ package parser
 
 // BrunoRequest represents a parsed .bru file
 type BrunoRequest struct {
-	FilePath string
-	Meta     MetaBlock
-	Method   string // GET, POST, PUT, DELETE, PATCH
-	URL      string
-	Example  ExampleBlock
+	FilePath    string
+	Meta        MetaBlock
+	Method      string // GET, POST, PUT, DELETE, PATCH
+	URL         string
+	Headers     map[string]string
+	QueryParams map[string]string
+	Body        string
+	Example     ExampleBlock
 }
 
 // MetaBlock contains metadata

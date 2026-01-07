@@ -8,6 +8,7 @@ import (
 
 	"github.com/anu-mdl/linker-bruno/server/loader"
 	"github.com/anu-mdl/linker-bruno/server/router"
+	"github.com/anu-mdl/linker-bruno/server/web"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
@@ -16,6 +17,7 @@ func main() {
 	port := flag.Int("port", 8080, "Port to run the server on")
 	dir := flag.String("dir", ".", "Directory containing Bruno collection")
 	env := flag.String("env", "local", "Environment name to load")
+	ui := flag.Bool("ui", false, "Enable web UI for API design")
 	flag.Parse()
 
 	log.Printf("Starting Bruno Mock Server")
@@ -53,7 +55,18 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// Then register routes
+	// Register UI routes if enabled
+	if *ui {
+		log.Println("Web UI enabled - starting UI server")
+		uiServer, err := web.NewUIServer(*dir)
+		if err != nil {
+			log.Fatalf("Failed to initialize UI server: %v", err)
+		}
+		uiServer.RegisterRoutes(r)
+		log.Printf("Web UI available at http://localhost:%d/", *port)
+	}
+
+	// Then register API mock routes
 	router.RegisterRoutes(r, requests, envVars)
 
 	// Add a default 404 handler

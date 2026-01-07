@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bruno Mock Server - API Designer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Bruno Mock Server - API Designer</h1>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="showCreateModal()">+ Create Request</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Panel: Sidebar -->
+            <aside class="sidebar" id="sidebar" hx-get="/api/requests" hx-trigger="load, requestsChanged from:body" hx-swap="innerHTML">
+                <div class="loading">Loading requests...</div>
+            </aside>
+
+            <!-- Center Panel: Request Editor -->
+            <main class="editor" id="editor">
+                <div class="empty-state">
+                    <h2>Welcome to Bruno API Designer</h2>
+                    <p>Select a request from the sidebar or create a new one to get started.</p>
+                </div>
+            </main>
+
+            <!-- Right Panel: Response Editor -->
+            <aside class="response-editor" id="response-editor">
+                <div class="empty-state">
+                    <h3>Response Preview</h3>
+                    <p>Response will appear here when you select a request.</p>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Create Request Modal -->
+    <div id="createModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Request</h2>
+                <span class="close" onclick="hideCreateModal()">&times;</span>
+            </div>
+            <form hx-post="/api/requests" hx-target="#editor" hx-swap="innerHTML">
+                <div class="form-group">
+                    <label for="name">Request Name</label>
+                    <input type="text" id="name" name="name" required placeholder="e.g., Get User">
+                </div>
+                <div class="form-group">
+                    <label for="method">HTTP Method</label>
+                    <select id="method" name="method" required>
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                        <option value="PATCH">PATCH</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="url">URL Path</label>
+                    <input type="text" id="url" name="url" required placeholder="e.g., /api/users/{id}">
+                    <small>Use {param} for path parameters. Folders will be created automatically.</small>
+                </div>
+                <div class="form-group">
+                    <label for="response_body">Response Body (JSON)</label>
+                    <textarea id="response_body" name="response_body" class="code-editor" rows="10" placeholder='{"id": "{<!-- -->{id}}", "name": "John Doe"}'></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="hideCreateModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function showCreateModal() {
+            document.getElementById('createModal').style.display = 'flex';
+        }
+
+        function hideCreateModal() {
+            document.getElementById('createModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('createModal');
+            if (event.target == modal) {
+                hideCreateModal();
+            }
+        }
+
+        // Listen for successful creation
+        document.body.addEventListener('htmx:afterRequest', function(event) {
+            if (event.detail.successful && event.detail.xhr.status === 201) {
+                hideCreateModal();
+            }
+        });
+
+        // Function to enable tab key for indentation in JSON text areas
+        function enableTabIndentation() {
+            const textareas = document.querySelectorAll('.code-editor');
+            textareas.forEach(textarea => {
+                // Remove existing handler to avoid duplicates
+                textarea.removeEventListener('keydown', handleTabKey);
+                // Add handler
+                textarea.addEventListener('keydown', handleTabKey);
+            });
+        }
+
+        function handleTabKey(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+
+                // Use execCommand to preserve undo history
+                // If execCommand is not supported, fall back to manual insertion
+                if (document.execCommand) {
+                    document.execCommand('insertText', false, '  ');
+                } else {
+                    // Fallback for browsers that don't support execCommand
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    const value = this.value;
+
+                    this.value = value.substring(0, start) + '  ' + value.substring(end);
+                    this.selectionStart = this.selectionEnd = start + 2;
+                }
+            }
+        }
+
+        // Enable tab for create modal on page load
+        document.addEventListener('DOMContentLoaded', enableTabIndentation);
+
+        // Re-enable tab when editor is loaded via HTMX
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            if (event.detail.target.id === 'editor') {
+                enableTabIndentation();
+            }
+        });
+    </script>
+</body>
+</html>

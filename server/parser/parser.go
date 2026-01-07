@@ -15,7 +15,9 @@ func ParseBrunoFile(filepath string) (*BrunoRequest, error) {
 	}
 
 	req := &BrunoRequest{
-		FilePath: filepath,
+		FilePath:    filepath,
+		Headers:     make(map[string]string),
+		QueryParams: make(map[string]string),
 	}
 
 	// Extract all blocks from the file
@@ -33,6 +35,21 @@ func ParseBrunoFile(filepath string) (*BrunoRequest, error) {
 			req.URL = parseMethodBlock(methodContent)
 			break
 		}
+	}
+
+	// Parse headers block
+	if headersContent, ok := blocks["headers"]; ok {
+		req.Headers = parseKeyValueBlock(headersContent)
+	}
+
+	// Parse params:query block
+	if paramsContent, ok := blocks["params:query"]; ok {
+		req.QueryParams = parseKeyValueBlock(paramsContent)
+	}
+
+	// Parse body:json block
+	if bodyContent, ok := blocks["body:json"]; ok {
+		req.Body = strings.TrimSpace(bodyContent)
 	}
 
 	// Parse example block
@@ -95,11 +112,18 @@ func extractBlocks(content string) map[string]string {
 
 		// If we're in a block, accumulate content
 		if inBlock {
-			blockContent.WriteString(line)
-			blockContent.WriteString("\n")
+			// Count braces in this line
+			openCount := strings.Count(line, "{")
+			closeCount := strings.Count(line, "}")
 
-			braceCount += strings.Count(line, "{")
-			braceCount -= strings.Count(line, "}")
+			// Add line to content ONLY if it won't close the block
+			if braceCount+openCount-closeCount > 0 {
+				blockContent.WriteString(line)
+				blockContent.WriteString("\n")
+			}
+
+			braceCount += openCount
+			braceCount -= closeCount
 
 			if braceCount == 0 {
 				blocks[currentBlock] = strings.TrimSpace(blockContent.String())

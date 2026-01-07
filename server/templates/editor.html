@@ -1,0 +1,225 @@
+{{define "editor.html"}}
+<div class="editor-container">
+    <!-- Editor Header -->
+    <div class="editor-header">
+        <h2>{{.Request.Meta.Name}}</h2>
+        <span class="method-badge method-{{.Request.Method}}">{{.Request.Method}}</span>
+        <span class="url-display">{{displayURL .Request.URL}}</span>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab(event, 'general')">General</button>
+        <button class="tab-btn" onclick="switchTab(event, 'headers')">Headers</button>
+        <button class="tab-btn" onclick="switchTab(event, 'params')">Params</button>
+        <button class="tab-btn" onclick="switchTab(event, 'body')">Body</button>
+    </div>
+
+    <!-- Form -->
+    <form id="request-form" hx-put="/api/requests/{{.ID}}" hx-swap="none">
+        <!-- General Tab -->
+        <div id="general" class="tab-content active">
+            <div class="form-group">
+                <label for="edit-name">Request Name</label>
+                <input type="text" id="edit-name" name="name" value="{{.Request.Meta.Name}}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="edit-method">HTTP Method</label>
+                <select id="edit-method" name="method" required>
+                    <option value="GET" {{if eq .Request.Method "GET"}}selected{{end}}>GET</option>
+                    <option value="POST" {{if eq .Request.Method "POST"}}selected{{end}}>POST</option>
+                    <option value="PUT" {{if eq .Request.Method "PUT"}}selected{{end}}>PUT</option>
+                    <option value="DELETE" {{if eq .Request.Method "DELETE"}}selected{{end}}>DELETE</option>
+                    <option value="PATCH" {{if eq .Request.Method "PATCH"}}selected{{end}}>PATCH</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="edit-url">URL Path</label>
+                <input type="text" id="edit-url" name="url" value="{{.Request.URL}}" required>
+                <small>Use {param} for path parameters</small>
+            </div>
+
+            <div class="form-group">
+                <label for="edit-example-desc">Description</label>
+                <textarea id="edit-example-desc" name="example_description" rows="3" placeholder="Optional description for this API endpoint">{{.Request.Example.Description}}</textarea>
+            </div>
+        </div>
+
+        <!-- Headers Tab -->
+        <div id="headers" class="tab-content">
+            <div class="form-group">
+                <label>Request Headers</label>
+                <div class="key-value-editor">
+                    <table class="key-value-table">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Value</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="req-headers-list">
+                            {{range $key, $value := .Request.Headers}}
+                            <tr>
+                                <td><input type="text" name="req_header_key[]" value="{{$key}}"></td>
+                                <td><input type="text" name="req_header_value[]" value="{{$value}}"></td>
+                                <td><button type="button" class="btn-icon" onclick="removeRow(this)">✕</button></td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addReqHeaderRow()">+ Add Header</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Params Tab -->
+        <div id="params" class="tab-content">
+            <div class="form-group">
+                <label>Query Parameters</label>
+                <div class="key-value-editor">
+                    <table class="key-value-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Value</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="params-list">
+                            {{if .Request.QueryParams}}
+                                {{range $key, $value := .Request.QueryParams}}
+                                <tr>
+                                    <td><input type="text" name="param_key[]" value="{{$key}}"></td>
+                                    <td><input type="text" name="param_value[]" value="{{$value}}"></td>
+                                    <td><button type="button" class="btn-icon" onclick="removeRow(this)">✕</button></td>
+                                </tr>
+                                {{end}}
+                            {{else}}
+                                <tr>
+                                    <td colspan="3" class="empty-state-small">No query parameters</td>
+                                </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addParamRow()">+ Add Parameter</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Body Tab -->
+        <div id="body" class="tab-content">
+            <div class="form-group">
+                <label for="edit-request-body">Request Body (JSON)</label>
+                <textarea id="edit-request-body" name="request_body" rows="15" class="code-editor" placeholder="Request body goes here...">{{.Request.Body}}</textarea>
+            </div>
+        </div>
+
+        <!-- Response Editor (injected into right panel) -->
+        <script>
+            document.getElementById('response-editor').innerHTML = `
+                <div class="response-editor-content">
+                    <h3>Response Example</h3>
+                    <div class="form-group">
+                        <label>Status Code</label>
+                        <div class="status-inputs">
+                            <input type="number" name="status_code" value="{{.Request.Example.Response.Status.Code}}" min="100" max="599" style="width: 80px;" form="request-form">
+                            <input type="text" name="status_text" value="{{.Request.Example.Response.Status.Text}}" placeholder="OK" style="width: 120px;" form="request-form">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Response Headers</label>
+                        <div class="key-value-editor">
+                            <table class="key-value-table">
+                                <thead>
+                                    <tr>
+                                        <th>Key</th>
+                                        <th>Value</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="resp-headers-list">
+                                    {{range $key, $value := .Request.Example.Response.Headers}}
+                                    <tr>
+                                        <td><input type="text" name="resp_header_key[]" value="{{$key}}" form="request-form"></td>
+                                        <td><input type="text" name="resp_header_value[]" value="{{$value}}" form="request-form"></td>
+                                        <td><button type="button" class="btn-icon" onclick="removeRow(this)">✕</button></td>
+                                    </tr>
+                                    {{end}}
+                                </tbody>
+                            </table>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addRespHeaderRow()">+ Add Header</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-response-body">Response Body (JSON)</label>
+                        <textarea id="edit-response-body" name="response_body" rows="15" class="code-editor" form="request-form">{{.Request.Example.Response.Body.Content}}</textarea>
+                    </div>
+                </div>
+            `;
+        </script>
+
+        <!-- Save Button -->
+        <div class="editor-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" class="btn btn-danger" hx-delete="/api/requests/{{.ID}}" hx-confirm="Are you sure you want to delete this request?">Delete Request</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function switchTab(event, tabName) {
+        // Hide all tab contents
+        const contents = document.querySelectorAll('.tab-content');
+        contents.forEach(content => content.classList.remove('active'));
+
+        // Remove active class from all buttons
+        const buttons = document.querySelectorAll('.tab-btn');
+        buttons.forEach(btn => btn.classList.remove('active'));
+
+        // Show selected tab
+        document.getElementById(tabName).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+
+    function addReqHeaderRow() {
+        const tbody = document.getElementById('req-headers-list');
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td><input type="text" name="req_header_key[]" placeholder="Key"></td>
+            <td><input type="text" name="req_header_value[]" placeholder="Value"></td>
+            <td><button type="button" class="btn-icon" onclick="removeRow(this)">✕</button></td>
+        `;
+    }
+
+    function addRespHeaderRow() {
+        const tbody = document.getElementById('resp-headers-list');
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td><input type="text" name="resp_header_key[]" placeholder="Key" form="request-form"></td>
+            <td><input type="text" name="resp_header_value[]" placeholder="Value" form="request-form"></td>
+            <td><button type="button" class="btn-icon" onclick="removeRow(this)">✕</button></td>
+        `;
+    }
+
+    function addParamRow() {
+        const tbody = document.getElementById('params-list');
+        // Remove empty state if present
+        if (tbody.querySelector('.empty-state-small')) {
+            tbody.innerHTML = '';
+        }
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td><input type="text" name="param_key[]" placeholder="Name"></td>
+            <td><input type="text" name="param_value[]" placeholder="Value"></td>
+            <td><button type="button" class="btn-icon" onclick="removeRow(this)">✕</button></td>
+        `;
+    }
+
+    function removeRow(btn) {
+        btn.closest('tr').remove();
+    }
+</script>
+{{end}}
