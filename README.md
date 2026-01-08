@@ -41,12 +41,12 @@ go mod download
 
 Start the server with default settings (port 8080, current directory):
 ```bash
-go run server/main.go
+go run cmd/app/main.go
 ```
 
 Or customize with flags:
 ```bash
-go run server/main.go --port 3000 --dir requests --env local
+go run cmd/app/main.go --port 3000 --dir requests --env local
 ```
 
 **Available Flags:**
@@ -60,7 +60,7 @@ go run server/main.go --port 3000 --dir requests --env local
 Enable the visual web interface to create, edit, and manage your API requests:
 
 ```bash
-go run server/main.go --ui --port 8080
+go run cmd/app/main.go --ui --port 8080
 ```
 
 Then open your browser to `http://localhost:8080/`
@@ -80,7 +80,7 @@ Then open your browser to `http://localhost:8080/`
 
 Build a standalone binary:
 ```bash
-go build -o bruno-mock-server server/main.go
+go build -o bruno-mock-server cmd/app/main.go
 ./bruno-mock-server --port 8080
 ```
 
@@ -410,32 +410,40 @@ curl http://localhost:8080/users/usebruno | jq '.'
 ```
 linker-bruno/
 ├── bruno.json                         # Bruno collection config
+├── cmd/
+│   └── app/
+│       └── main.go                    # Application entry point with DI
+├── internal/                          # Internal packages (not importable externally)
+│   ├── modules/                       # Business logic modules (vertical slices)
+│   │   ├── mockserver/               # Mock endpoint serving module
+│   │   │   ├── repository/           # .bru file loading & environment parsing
+│   │   │   ├── service/              # Route registration & response interpolation
+│   │   │   └── module.go             # Module initialization
+│   │   └── webui/                    # Web UI module
+│   │       ├── dto/                  # Request/response structures
+│   │       ├── repository/           # File I/O operations
+│   │       ├── service/              # CRUD orchestration & tree building
+│   │       ├── delivery/             # HTTP handlers (UI + API)
+│   │       └── module.go             # Module initialization
+│   └── shared/                       # Shared infrastructure (Shared Kernel)
+│       ├── brunoformat/              # .bru parsing & serialization
+│       ├── urlutil/                  # URL conversion utilities
+│       ├── response/                 # Unified API response format
+│       ├── middleware/               # HTTP middleware
+│       └── logger/                   # Logging configuration
 ├── environments/                      # Environment variables
 │   └── local.bru
 ├── requests/                          # Bruno requests with examples
 │   ├── api/
 │   │   ├── users/
-│   │   │   ├── Get User.bru           # Request + response example
+│   │   │   ├── Get User.bru          # Request + response example
 │   │   │   └── List Users.bru
 │   │   └── v1/
 │   │       └── products/
 │   │           └── categories/
 │   │               └── Get Category.bru
 │   └── ...
-└── server/                            # Go server code
-    ├── main.go                        # Entry point
-    ├── parser/
-    │   ├── types.go                   # Data structures (BrunoRequest, MetaBlock, ExampleBlock)
-    │   └── parser.go                  # .bru file block parser
-    ├── loader/
-    │   ├── loader.go                  # Recursive .bru file scanner
-    │   └── environment.go             # Environment variable parser
-    ├── router/
-    │   └── router.go                  # Route generator and variable interpolation
-    ├── web/                           # Web UI (when --ui flag is used)
-    │   ├── handlers.go                # HTMX endpoint handlers, template functions
-    │   ├── crud.go                    # Create/Read/Update/Delete operations
-    │   └── tree.go                    # Folder tree builder
+└── server/                            # Legacy directory (DEPRECATED)
     ├── templates/                     # HTML templates
     │   ├── index.html                 # Main page layout
     │   ├── sidebar.html               # Folder tree sidebar
@@ -443,6 +451,12 @@ linker-bruno/
     └── static/                        # Static assets
         └── style.css                  # UI styles
 ```
+
+**Architecture**: The project follows a modular, vertically-sliced architecture with clear separation of concerns:
+- **Modules** contain business logic organized by feature (mockserver, webui)
+- **Shared** contains infrastructure utilities used across modules
+- Each module has **repository** (data access), **service** (business logic), and **delivery** (HTTP) layers
+- Dependency injection is handled in each module's `module.go` file
 
 ## How It Works
 

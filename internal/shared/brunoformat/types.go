@@ -52,3 +52,29 @@ type ExampleBody struct {
 	Type    string
 	Content string
 }
+
+// NewDefaultExampleBlock creates a default example block for requests without one
+func NewDefaultExampleBlock(method, url string) ExampleBlock {
+	return ExampleBlock{
+		Name:        "Default Response",
+		Description: "Auto-generated default response",
+		Request: ExampleRequest{
+			URL:    url,
+			Method: method,
+			Mode:   "none",
+		},
+		Response: ExampleResponse{
+			Headers: map[string]string{
+				"content-type": "application/json",
+			},
+			Status: ExampleStatus{
+				Code: 200,
+				Text: "OK",
+			},
+			Body: ExampleBody{
+				Type:    "json",
+				Content: "{}",
+			},
+		},
+	}
+}
