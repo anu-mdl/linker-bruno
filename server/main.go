@@ -13,6 +13,13 @@ import (
 )
 
 func main() {
+	// DEPRECATION WARNING
+	log.Println("========================================")
+	log.Println("WARNING: This entry point is DEPRECATED")
+	log.Println("Please use: go run cmd/app/main.go")
+	log.Println("The server/ directory will be removed in a future release")
+	log.Println("========================================")
+
 	// Parse CLI flags
 	port := flag.Int("port", 8080, "Port to run the server on")
 	dir := flag.String("dir", ".", "Directory containing Bruno collection")
