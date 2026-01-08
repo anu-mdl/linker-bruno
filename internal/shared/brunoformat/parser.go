@@ -59,6 +59,9 @@ func ParseBrunoFile(filepath string) (*BrunoRequest, error) {
 			return nil, fmt.Errorf("failed to parse example block: %w", err)
 		}
 		req.Example = example
+	} else {
+		// Generate default example block if none exists
+		req.Example = NewDefaultExampleBlock(req.Method, req.URL)
 	}
 
 	return req, nil

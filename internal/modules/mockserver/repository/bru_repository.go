@@ -68,11 +68,8 @@ func (r *BruRepository) LoadAllRequests(baseDir string) ([]*brunoformat.BrunoReq
 			return nil
 		}
 
-		// Validate that an example block exists
-		if req.Example.Response.Status.Code == 0 {
-			log.Printf("Warning: skipping %s - no example block with valid response found", path)
-			return nil
-		}
+		// Note: Parser now auto-generates default example blocks if missing,
+		// so all valid requests will have a mock response
 
 		requests = append(requests, req)
 		return nil

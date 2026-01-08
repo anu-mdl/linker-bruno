@@ -7,6 +7,7 @@ A Go server that automatically generates HTTP routes from Bruno request definiti
 - 🚀 Automatically scans and loads all `.bru` files
 - 🔄 Generates HTTP routes dynamically based on Bruno requests
 - 📝 Returns mock JSON responses from inline `example` blocks
+- 🤖 **Auto-generates default responses** for requests without example blocks
 - ✅ Single-file format with request and response in one place
 - 🎯 Supports path parameters with variable interpolation
 - 🌐 Works with both JSON objects and arrays
@@ -314,6 +315,38 @@ body: {
   '''
 }
 ```
+
+## Default Responses for Requests Without Examples
+
+The server automatically works with **any valid Bruno request**, even if it doesn't have an `example` block. This makes it compatible with:
+- ✅ Brand new requests created in Bruno that haven't been executed yet
+- ✅ Collections where no one has saved example responses
+- ✅ Requests imported from other tools (Postman, Insomnia, etc.)
+
+When a `.bru` file is missing an `example` block, the server automatically generates a default mock response:
+
+**Input (minimal .bru file):**
+```bru
+meta {
+  name: My API Request
+  type: http
+  seq: 1
+}
+
+get {
+  url: /api/users
+}
+```
+
+**Auto-generated response:**
+- Status: `200 OK`
+- Content-Type: `application/json`
+- Body: `{}`
+
+You can later add custom responses by:
+1. Executing the request in Bruno desktop app and saving the response as an example
+2. Using the Web UI to edit the response
+3. Manually adding an `example` block to the `.bru` file
 
 ## Path Parameter Interpolation
 
